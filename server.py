@@ -366,12 +366,14 @@ async def try_match(current_id):
     await rdb.hset(f"user:{user1_id}", mapping={
         "status": "matched",
         "opponent": user2_id,
-        "color": user1_color
+        "color": user1_color,
+        "opponent_name": user2_name
     })
     await rdb.hset(f"user:{user2_id}", mapping={
         "status": "matched",
         "opponent": user1_id,
-        "color": user2_color
+        "color": user2_color,
+        "opponent_name": user1_name
     })
 
     print(f"[MATCH] {user1_id} ({user1_color}) vs {user2_id} ({user2_color})")
@@ -431,4 +433,4 @@ async def handle_disconnect(user_id):
         # 対戦相手も40秒後にクリーンアップできるように更新
         await rdb.expire(f"user:{opponent_id}", 40)
         await rdb.expire(f"board:{opponent_id}", 40)
-        await rdb.expire(f"turn:{opponent_id}", 40)
+        await rdb.expire(f"turn:{opponent_id}", 40)     
