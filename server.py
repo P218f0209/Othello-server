@@ -293,7 +293,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 async def try_match(current_id):
     logging.info(f"[DEBUG] try_match called for {current_id}")
-    game_id = str(uuid.uuid4())
+    
     
     all_keys = await rdb.keys("user:*")
     waiting_users = []
@@ -303,7 +303,7 @@ async def try_match(current_id):
         if status == "waiting":
             waiting_users.append(uid)
 
-    print(f"[DEBUG] waiting_users =", waiting_users)
+    logging.info(f"[DEBUG] waiting_users =", waiting_users)
 
     if len(waiting_users) < 2:
         return
@@ -322,28 +322,30 @@ async def try_match(current_id):
     user1_name = await rdb.hget(f"user:{user1_id}", "name")
     user2_name = await rdb.hget(f"user:{user2_id}", "name")
 
-    colors = ["black", "white"]
-    random.shuffle(colors)
+    
     user1_color = "black"
     user2_color = "white"
     first_turn = "black"
+    
+    
+    game_id = str(uuid.uuid4())
 
     await rdb.hset(f"user:{user1_id}", mapping={
-        "game_id": game_id,
-        "status": "matched",
-        "opponent": user2_id,
-        "color": user1_color,
-        "opponent_name": user2_name
+            "game_id": game_id,
+            "status": "matched",
+            "opponent": user2_id,
+            "color": user1_color,
+            "opponent_name": user2_name
     })
     await rdb.hset(f"user:{user2_id}", mapping={
-        "game_id": game_id,
-        "status": "matched",
-        "opponent": user1_id,
-        "color": user2_color,
-        "opponent_name": user1_name
+            "game_id": game_id,
+            "status": "matched",
+            "opponent": user1_id,
+            "color": user2_color,
+            "opponent_name": user1_name
     })
 
-    print(f"[MATCH] {user1_id} ({user1_color}) vs {user2_id} ({user2_color})")
+    logging.info(f"[MATCH] {user1_id} ({user1_color}) vs {user2_id} ({user2_color})")
 
     await asyncio.sleep(2.0)
 
@@ -436,4 +438,5 @@ async def wait_end(disconnect_id, opponent_id):
        
         print(f"[CLEANUP] {disconnect_id} と {opponent_id} のデータを削除しました。")
 
+    
     
