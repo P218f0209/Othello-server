@@ -63,6 +63,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     turn = await rdb.get(f"turn:{game_id}")
                     color = await rdb.hget(f"user:{user_id}", "color")
                     opponent_id = await rdb.hget(f"user:{user_id}", "opponent")
+                    your_turn = (turn == color)
 
                     opponent_name = await rdb.hget(f"user:{opponent_id}", "name") if opponent_id else None
 
@@ -73,7 +74,7 @@ async def websocket_endpoint(websocket: WebSocket):
                             "board": json.loads(board_data),
                             "current_player": turn,
                             "your_color": 1 if color == "black" else -1,
-                            "your_turn": turn == color,
+                            "your_turn": your_turn,
                             "opponent_name": opponent_name,
                             "reconnect_code": True
                         }))
@@ -91,11 +92,14 @@ async def websocket_endpoint(websocket: WebSocket):
                             # 最新盤面を相手にも送る
                                 opponent_turn = await rdb.get(f"turn:{game_id}")
                                 opponent_board_data = await rdb.get(f"board:{game_id}")
+                                opponent_color = await rdb.hget(f"user:{opponent_id}", "color")
+
                                 if opponent_turn and opponent_board_data:
+                                    current_player_value = 1 if opponent_turn == opponent_color else -1
                                     await connected_sockets[opponent_id].send_text(json.dumps({
                                         "type": "update_board",
                                         "board": json.loads(opponent_board_data),
-                                        "current_player": 1 if opponent_turn == "black" else -1,
+                                        "current_player": current_player_value,
                                     }))
                             except Exception as e:
                                 logging.info(f"[WARN] Failed to notify opponent: {e}")
@@ -293,7 +297,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 async def try_match(current_id):
     logging.info(f"[DEBUG] try_match called for {current_id}")
-    game_id = str(uuid.uuid4())
+    
     
     all_keys = await rdb.keys("user:*")
     waiting_users = []
@@ -303,7 +307,7 @@ async def try_match(current_id):
         if status == "waiting":
             waiting_users.append(uid)
 
-    print(f"[DEBUG] waiting_users =", waiting_users)
+    logging.info(f"[DEBUG] waiting_users =", waiting_users)
 
     if len(waiting_users) < 2:
         return
@@ -322,28 +326,30 @@ async def try_match(current_id):
     user1_name = await rdb.hget(f"user:{user1_id}", "name")
     user2_name = await rdb.hget(f"user:{user2_id}", "name")
 
-    colors = ["black", "white"]
-    random.shuffle(colors)
+    
     user1_color = "black"
     user2_color = "white"
     first_turn = "black"
+    
+    
+    game_id = str(uuid.uuid4())
 
     await rdb.hset(f"user:{user1_id}", mapping={
-        "game_id": game_id,
-        "status": "matched",
-        "opponent": user2_id,
-        "color": user1_color,
-        "opponent_name": user2_name
+            "game_id": game_id,
+            "status": "matched",
+            "opponent": user2_id,
+            "color": user1_color,
+            "opponent_name": user2_name
     })
     await rdb.hset(f"user:{user2_id}", mapping={
-        "game_id": game_id,
-        "status": "matched",
-        "opponent": user1_id,
-        "color": user2_color,
-        "opponent_name": user1_name
+            "game_id": game_id,
+            "status": "matched",
+            "opponent": user1_id,
+            "color": user2_color,
+            "opponent_name": user1_name
     })
 
-    print(f"[MATCH] {user1_id} ({user1_color}) vs {user2_id} ({user2_color})")
+    logging.info(f"[MATCH] {user1_id} ({user1_color}) vs {user2_id} ({user2_color})")
 
     await asyncio.sleep(2.0)
 
@@ -424,9 +430,9 @@ async def wait_end(disconnect_id, opponent_id):
                     "your_color": color,
                     
                 }))
-                print(f"[END_GAME] {opponent_id} に対戦終了を通知しました。")
+                logging.info(f"[END_GAME] {opponent_id} に対戦終了を通知しました。")
             except Exception as e:
-                print(f"[ERROR] end_game の送信失敗: {e}")
+                logging.info(f"[ERROR] end_game の送信失敗: {e}")
 
         await rdb.delete(f"user:{disconnect_id}")
         await rdb.delete(f"user:{opponent_id}")
@@ -434,6 +440,8 @@ async def wait_end(disconnect_id, opponent_id):
         
         await rdb.delete(f"turn:{game_id}")
        
-        print(f"[CLEANUP] {disconnect_id} と {opponent_id} のデータを削除しました。")
+        logging.info(f"[CLEANUP] {disconnect_id} と {opponent_id} のデータを削除しました。")
+
+    
 
     
